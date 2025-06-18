@@ -1,0 +1,5 @@
+**/logs
+**/tests
+/data/raw
+/data/processed
+
