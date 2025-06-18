@@ -88,7 +88,7 @@ def get_pokemon_details(link, logger=None):
         res.raise_for_status()
         
         soup = BeautifulSoup(res.text, "html.parser")
-        data = {}
+        data = {"form": "normal"}  # 기본적으로 normal 폼으로 설정
 
         # 기본 정보 (vitals-table에서)
         vitals_table = soup.select_one("table.vitals-table")
@@ -221,6 +221,59 @@ def get_pokemon_details(link, logger=None):
         
         data["explanation_text"] = ", ".join(entries) if entries else None
 
+        # 진화 조건 수집
+        data["evo_from_id"] = None
+        data["evo_from_cond"] = None
+        
+        # Evolution chart 섹션 찾기
+        for h2 in soup.select("h2"):
+            if "Evolution chart" in h2.text:
+                evo_container = h2.find_next("div", class_="infocard-list-evo")
+                if evo_container:
+                    # 진화 체인의 모든 요소 (카드 + 화살표) 순서대로 수집
+                    evo_elements = evo_container.find_all(["div", "span"], class_=["infocard", "infocard-arrow"])
+                    
+                    current_pokemon_id = None
+                    # 현재 페이지의 포켓몬 ID 추출 (URL에서)
+                    try:
+                        # link에서 포켓몬 이름 추출
+                        pokemon_name = link.split("/")[-1]
+                        
+                        # 진화 체인에서 현재 포켓몬 찾기
+                        for i, element in enumerate(evo_elements):
+                            if "infocard" in element.get("class", []) and "infocard-arrow" not in element.get("class", []):
+                                # 포켓몬 카드인 경우
+                                name_link = element.select_one("a.ent-name")
+                                if name_link:
+                                    card_pokemon_name = name_link["href"].split("/")[-1]
+                                    
+                                    # 현재 포켓몬과 매칭되는 카드 찾기
+                                    if card_pokemon_name == pokemon_name:
+                                        # 이 포켓몬 바로 앞의 진화 조건과 진화 전 포켓몬 찾기
+                                        if i >= 2:  # 최소 [포켓몬] -> [화살표] -> [현재포켓몬] 구조
+                                            # 바로 앞 화살표에서 진화 조건 추출
+                                            prev_arrow = evo_elements[i-1]
+                                            if "infocard-arrow" in prev_arrow.get("class", []):
+                                                condition_small = prev_arrow.select_one("small")
+                                                if condition_small:
+                                                    condition_text = condition_small.text.strip()
+                                                    # 괄호 제거: "(Level 16)" -> "Level 16"
+                                                    data["evo_from_cond"] = condition_text.strip("()")
+                                            
+                                            # 바로 앞 포켓몬에서 ID 추출
+                                            prev_pokemon = evo_elements[i-2]
+                                            if "infocard" in prev_pokemon.get("class", []) and "infocard-arrow" not in prev_pokemon.get("class", []):
+                                                prev_id_small = prev_pokemon.select_one("small")
+                                                if prev_id_small:
+                                                    prev_id_text = prev_id_small.text.strip()
+                                                    # "#0004" -> "0004"
+                                                    data["evo_from_id"] = prev_id_text.replace("#", "")
+                                        break
+                    except Exception as e:
+                        if logger:
+                            logger.debug(f"진화 조건 파싱 오류: {str(e)}")
+                break
+
         # 한글 이름
         data["name_kr"] = None
         # "Other languages" 섹션 찾기
@@ -287,6 +340,9 @@ def collect_all_pokemon_data(generations=[1]):
                     "weight_kg": detail.get("weight_kg"),
                     "base_exp": detail.get("base_exp"),
                     "catch_rate": detail.get("catch_rate"),
+                    "form": detail.get("form", "normal"),
+                    "evo_from_id": detail.get("evo_from_id"),
+                    "evo_from_cond": detail.get("evo_from_cond"),
                     "HP": detail.get("HP"),
                     "Atk": detail.get("Atk"),
                     "Def": detail.get("Def"),
@@ -324,15 +380,15 @@ def collect_all_pokemon_data(generations=[1]):
 
 if __name__ == "__main__":
     # 1세대 포켓몬 데이터 수집
-    df = collect_all_pokemon_data(generations=[1])
+    df = collect_all_pokemon_data(generations=[1,2,3,4,5,6,7,8,9])
+    # df = collect_all_pokemon_data(generations=[1])
     
     if df is not None and len(df) > 0:
-        # data/csv 디렉토리 생성
         import os
-        os.makedirs("data/csv", exist_ok=True)
+        os.makedirs("data/raw", exist_ok=True)
         
-        output_file = "data/csv/pokemon_basic.csv"
-        df.to_csv(output_file, index=False)
+        output_file = "data/raw/pokemon_basic.tsv"
+        df.to_csv(output_file, index=False, sep="\t")
         print(f"수집 완료: 총 {len(df)} 포켓몬 데이터 {output_file}에 저장됨")
     else:
         print("데이터 수집 실패")
