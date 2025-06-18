@@ -219,7 +219,7 @@ def get_pokemon_details(link, logger=None):
                             continue
                 break
         
-        data["explanation_text"] = ", ".join(entries) if entries else None
+        data["descriptions"] = ", ".join(entries) if entries else None
 
         # 진화 조건 수집
         data["evo_from_id"] = None
@@ -350,7 +350,7 @@ def collect_all_pokemon_data(generations=[1]):
                     "SpDef": detail.get("SpDef"),
                     "Spd": detail.get("Spd"),
                     "Tot": detail.get("Tot"),
-                    "explanation_text": detail.get("explanation_text"),
+                    "descriptions": detail.get("descriptions"),
                     "link": p["link"],
                 })
 
