@@ -1,5 +1,20 @@
-**/logs
-**/tests
-/data/raw
-/data/processed
+# 로그 파일
+logs/
+
+# 테스트 파일
+tests/
+
+# 데이터 파일  
+data/raw/
+data/processed/
+
+# Python 캐시
+**/__pycache__/
+*.pyc
+
+# 패키지 설치 (editable install)
+*.egg-info/
+
+# 맥 시스템 파일
+.DS_Store
 
